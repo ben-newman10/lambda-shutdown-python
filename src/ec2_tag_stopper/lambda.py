@@ -3,7 +3,7 @@ import os
 
 ec2 = boto3.client('ec2')
 
-def stop_ec2_instances_with_tag():
+def stop_ec2_instances_with_tag(event, context):
     tag_key = os.environ['TAG_KEY']
     tag_value = os.environ['TAG_VALUE']
     
