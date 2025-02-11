@@ -1,3 +1,12 @@
+terraform {
+  backend "s3" {
+    bucket         = "lambda-shutdown-terraform-state" # Replace with your S3 bucket name
+    key            = "terraform/state"             # Path to store the state file within the bucket
+    region         = "eu-west-2"                   # Replace with your AWS region
+    encrypt        = true                          # Encrypt the state file on S3
+  }
+}
+
 # Configure the AWS Provider
 provider "aws" {
   region = var.region
@@ -70,14 +79,13 @@ resource "aws_iam_role_policy_attachment" "ec2_tag_stopper_attach" {
 
 # Create an AWS Lambda Function
 resource "aws_lambda_function" "ec2_tag_stopper" {
-  filename      = "${path.module}/lambda.py"
+  filename      = "../ec2_tag_stopper.zip"
   function_name = "ec2-tag-stopper"
   handler       = "stop_ec2_instances_with_tag"
   runtime       = "python3.8"
   role          = aws_iam_role.lambda_exec.arn
 
-  # The `source_code_hash` is required for Lambda to work correctly
-  source_code_hash = filebase64sha256("${path.module}/lambda.py")
+  source_code_hash = filebase64sha256("../ec2_tag_stopper.zip")
 }
 
 # Create a CloudWatch Events rule to trigger at 7 PM every day
