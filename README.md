@@ -32,8 +32,8 @@ Before using this project, ensure you have:
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your/repository.git
-   cd repository
+   git clone git@github.com:ben-newman10/lambda-shutdown-python.git
+   cd lambda-shutdown-python
    ```
 
 2. **Configure AWS Credentials**: Make sure your local environment or CI/CD pipeline has AWS credentials configured with permissions to deploy Terraform resources.
