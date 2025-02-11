@@ -39,4 +39,4 @@ jobs:
           AWS_REGION: eu-west-2
           working-directory: ./src/terraform
         run: |
-          terraform init && terraform apply -auto-approve
+          pwd && ls -l && terraform init && terraform apply -auto-approve
