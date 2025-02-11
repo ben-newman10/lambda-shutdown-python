@@ -81,11 +81,18 @@ resource "aws_iam_role_policy_attachment" "ec2_tag_stopper_attach" {
 resource "aws_lambda_function" "ec2_tag_stopper" {
   filename      = "../ec2_tag_stopper.zip"
   function_name = "ec2-tag-stopper"
-  handler       = "stop_ec2_instances_with_tag"
+  handler       = "lambda.stop_ec2_instances_with_tag"
   runtime       = "python3.8"
   role          = aws_iam_role.lambda_exec.arn
 
   source_code_hash = filebase64sha256("../ec2_tag_stopper.zip")
+
+  environment {
+    variables = {
+      TAG_KEY   = var.tag_key
+      TAG_VALUE = var.tag_value
+    }
+  }
 }
 
 # Create a CloudWatch Events rule to trigger at 7 PM every day
