@@ -74,13 +74,30 @@ resource "aws_lambda_function" "ec2_tag_stopper" {
   function_name = "ec2-tag-stopper"
   handler       = "stop_ec2_instances_with_tag"
   runtime       = "python3.8"
+  role          = aws_iam_role.lambda_exec.arn
 
   # The `source_code_hash` is required for Lambda to work correctly
   source_code_hash = filebase64sha256("${path.module}/lambda.py")
 }
 
-# Create an AWS Lambda Event Source Mapping (Trigger)
-resource "aws_lambda_event_source_mapping" "ec2_tag_stopper_trigger" {
-  event_source_arn = aws_cloudwatch_event_rule.ec2_tag_stopper.arn
-  function_name    = aws_lambda_function.ec2_tag_stopper.function_name
+# Create a CloudWatch Events rule to trigger at 7 PM every day
+resource "aws_cloudwatch_event_rule" "ec2_tag_stopper" {
+  name        = "ec2-tag-stopper-schedule"
+  description = "Triggers the Lambda function every day at 7 PM"
+  schedule_expression = "cron(0 19 * * ? *)" # 7 PM UTC Daily
+}
+
+# Create a CloudWatch Events Target to invoke the Lambda
+resource "aws_cloudwatch_event_target" "lambda_target" {
+  rule      = aws_cloudwatch_event_rule.ec2_tag_stopper.name
+  arn       = aws_lambda_function.ec2_tag_stopper.arn
+}
+
+# Allow CloudWatch Events to invoke the Lambda function
+resource "aws_lambda_permission" "allow_cloudwatch" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ec2_tag_stopper.arn
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.ec2_tag_stopper.arn
 }

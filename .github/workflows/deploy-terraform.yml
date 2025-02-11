@@ -17,10 +17,11 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-2
-      - name: Install Terraform
+      - name: Install Terraform and python dependencies
         run: |
-          sudo apt-get update && sudo apt-get install terraform -y
-      - name: Apply Terraform configuration
+          sudo apt-get update && sudo apt-get install terraform python3-pip -y
+          pip3 install --upgrade boto3 botocore
+      - name: Deploy Terraform configuration
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
