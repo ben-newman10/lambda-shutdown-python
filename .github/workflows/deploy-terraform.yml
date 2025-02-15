@@ -27,11 +27,6 @@ jobs:
           sudo mv terraform /usr/local/bin/
           terraform -version
 
-      - name: Install Python dependencies
-        run: |
-          sudo apt-get install -y python3-pip
-          pip3 install --upgrade boto3 botocore
-
       - name: Zip Lambda Python code
         run: |
           cd src/ec2_tag_stopper

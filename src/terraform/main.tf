@@ -31,29 +31,6 @@ resource "aws_iam_role" "lambda_exec" {
   })
 }
 
-# Create an IAM Policy for Lambda execution
-resource "aws_iam_policy" "lambda_exec_policy" {
-  name        = "lambda-exec-policy"
-  description = "Policy for our Lambda function to execute"
-
-  policy      = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [
-      {
-        Action = ["ec2:StopInstances"]
-        Effect = "Allow"
-        Resource = "*"
-      },
-    ]
-  })
-}
-
-# Attach the IAM Policy to the Role
-resource "aws_iam_role_policy_attachment" "lambda_exec_attach" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = aws_iam_policy.lambda_exec_policy.arn
-}
-
 # Create an IAM Policy for Lambda function execution (tag stopping)
 resource "aws_iam_policy" "ec2_tag_stopper_policy" {
   name        = "ec2-tag-stopper-policy"
