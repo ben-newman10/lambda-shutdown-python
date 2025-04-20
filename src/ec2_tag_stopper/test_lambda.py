@@ -3,9 +3,6 @@ from unittest.mock import patch, MagicMock
 import os
 from ec2_handler import stop_ec2_instances_with_tag
 
-def test_lambda_functionality():
-    assert True  # Replace with actual test logic
-
 @patch('ec2_handler.ec2')
 def test_stop_ec2_instances_with_tag_no_env_vars(mock_ec2):
     # Ensure environment variables are not set
