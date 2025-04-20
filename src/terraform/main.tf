@@ -58,7 +58,7 @@ resource "aws_iam_role_policy_attachment" "ec2_tag_stopper_attach" {
 resource "aws_lambda_function" "ec2_tag_stopper" {
   filename      = "../ec2_tag_stopper.zip"
   function_name = "ec2-tag-stopper"
-  handler       = "lambda.stop_ec2_instances_with_tag"
+  handler       = "ec2_handler.stop_ec2_instances_with_tag"
   runtime       = "python3.8"
   role          = aws_iam_role.lambda_exec.arn
 

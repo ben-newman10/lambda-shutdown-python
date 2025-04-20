@@ -30,7 +30,7 @@ jobs:
       - name: Zip Lambda Python code
         run: |
           cd src/ec2_tag_stopper
-          zip -r ../ec2_tag_stopper.zip lambda.py
+          zip -r ../ec2_tag_stopper.zip ec2_handler.py
 
       - name: Deploy Terraform configuration
         env:
