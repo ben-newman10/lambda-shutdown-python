@@ -1,0 +1,4 @@
+bucket         = "lambda-shutdown-terraform-state"
+key            = "terraform/state"
+region         = "eu-west-2"
+encrypt        = true

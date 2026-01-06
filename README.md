@@ -27,6 +27,7 @@ Before using this project, ensure you have:
 - An AWS account with the necessary IAM credentials.
 - Terraform installed and configured in your environment.
 - AWS CLI configured with appropriate permissions to create resources.
+- Python 3.12 or later installed (to match the Lambda runtime).
 
 ## Deployment
 
@@ -38,10 +39,18 @@ Before using this project, ensure you have:
 
 2. **Configure AWS Credentials**: Make sure your local environment or CI/CD pipeline has AWS credentials configured with permissions to deploy Terraform resources.
 
-3. **Deploy Locally**:
-   Run Terraform to apply the configuration:
+3. **Configure Backend**:
+   This project uses an S3 backend for Terraform state. You must provide the configuration dynamically or via a file. Copy the example file and fill in your details:
    ```bash
-   terraform init
+   cp src/terraform/backend.conf.example src/terraform/backend.conf
+   # Edit src/terraform/backend.conf with your bucket details
+   ```
+
+4. **Deploy Locally**:
+   Run Terraform to apply the configuration, passing the backend config:
+   ```bash
+   cd src/terraform
+   terraform init -backend-config=backend.conf
    terraform apply -auto-approve
    ```
 

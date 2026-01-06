@@ -17,21 +17,34 @@ def stop_ec2_instances_with_tag(event, context):
         return
 
     try:
-        # Filter EC2 instances based on tags
-        response = ec2.describe_instances()
-        instances = []
-        for reservation in response['Reservations']:
-            for instance in reservation['Instances']:
-                for tag in instance.get('Tags', []):
-                    if tag['Key'] == tag_key and tag['Value'] == tag_value:
-                        instances.append(instance['InstanceId'])
+        # Filter EC2 instances based on tags using server-side filtering
+        # and handle pagination
+        paginator = ec2.get_paginator('describe_instances')
+        page_iterator = paginator.paginate(
+            Filters=[
+                {
+                    'Name': f'tag:{tag_key}',
+                    'Values': [tag_value]
+                },
+                {
+                    'Name': 'instance-state-name',
+                    'Values': ['running'] # Only stop running instances
+                }
+            ]
+        )
+
+        instances_to_stop = []
+        for page in page_iterator:
+            for reservation in page['Reservations']:
+                for instance in reservation['Instances']:
+                    instances_to_stop.append(instance['InstanceId'])
         
         # Stop the identified instances
-        if instances:
-            ec2.stop_instances(InstanceIds=instances)
-            logger.info(f"EC2 instances with '{tag_key}={tag_value}' stopped.")
+        if instances_to_stop:
+            ec2.stop_instances(InstanceIds=instances_to_stop)
+            logger.info(f"Stopping {len(instances_to_stop)} EC2 instances with '{tag_key}={tag_value}'. IDs: {instances_to_stop}")
         else:
-            logger.info(f"No EC2 instances found with '{tag_key}={tag_value}'.")
+            logger.info(f"No running EC2 instances found with '{tag_key}={tag_value}'.")
     
     except Exception as e:
         logger.exception(f"An error occurred: {e}")

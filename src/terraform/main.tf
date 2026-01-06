@@ -1,15 +1,18 @@
 terraform {
-  backend "s3" {
-    bucket         = "lambda-shutdown-terraform-state" # Replace with your S3 bucket name
-    key            = "terraform/state"             # Path to store the state file within the bucket
-    region         = "eu-west-2"                   # Replace with your AWS region
-    encrypt        = true                          # Encrypt the state file on S3
-  }
+  backend "s3" {}
 }
 
 # Configure the AWS Provider
 provider "aws" {
   region = var.region
+}
+
+# Data source to zip the lambda code
+data "archive_file" "ec2_tag_stopper_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../ec2_tag_stopper"
+  output_path = "${path.module}/../ec2_tag_stopper.zip"
+  excludes    = ["__pycache__", "test_lambda.py"] 
 }
 
 # Create an IAM Role for Lambda execution
@@ -31,19 +34,35 @@ resource "aws_iam_role" "lambda_exec" {
   })
 }
 
+# Attach Basic Execution Role for CloudWatch Logs
+resource "aws_iam_role_policy_attachment" "lambda_logs" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
 # Create an IAM Policy for Lambda function execution (tag stopping)
 resource "aws_iam_policy" "ec2_tag_stopper_policy" {
   name        = "ec2-tag-stopper-policy"
   description = "Policy for our Lambda function to stop EC2 instances"
 
-  policy      = jsonencode({
-    Version   = "2012-10-17"
+  policy = jsonencode({
+    Version = "2012-10-17"
     Statement = [
       {
-        Action = ["ec2:DescribeInstances", "ec2:StopInstances"]
-        Effect = "Allow"
+        Action   = "ec2:DescribeInstances"
+        Effect   = "Allow"
         Resource = "*"
       },
+      {
+        Action   = "ec2:StopInstances"
+        Effect   = "Allow"
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/${var.tag_key}" = var.tag_value
+          }
+        }
+      }
     ]
   })
 }
@@ -56,13 +75,13 @@ resource "aws_iam_role_policy_attachment" "ec2_tag_stopper_attach" {
 
 # Create an AWS Lambda Function
 resource "aws_lambda_function" "ec2_tag_stopper" {
-  filename      = "../ec2_tag_stopper.zip"
+  filename      = data.archive_file.ec2_tag_stopper_zip.output_path
   function_name = "ec2-tag-stopper"
   handler       = "ec2_handler.stop_ec2_instances_with_tag"
-  runtime       = "python3.8"
+  runtime       = "python3.12"
   role          = aws_iam_role.lambda_exec.arn
 
-  source_code_hash = filebase64sha256("../ec2_tag_stopper.zip")
+  source_code_hash = data.archive_file.ec2_tag_stopper_zip.output_base64sha256
 
   environment {
     variables = {
@@ -74,15 +93,15 @@ resource "aws_lambda_function" "ec2_tag_stopper" {
 
 # Create a CloudWatch Events rule to trigger at 7 PM every day
 resource "aws_cloudwatch_event_rule" "ec2_tag_stopper" {
-  name        = "ec2-tag-stopper-schedule"
-  description = "Triggers the Lambda function every day at 7 PM"
+  name                = "ec2-tag-stopper-schedule"
+  description         = "Triggers the Lambda function every day at 7 PM"
   schedule_expression = "cron(0 19 * * ? *)" # 7 PM UTC Daily
 }
 
 # Create a CloudWatch Events Target to invoke the Lambda
 resource "aws_cloudwatch_event_target" "lambda_target" {
-  rule      = aws_cloudwatch_event_rule.ec2_tag_stopper.name
-  arn       = aws_lambda_function.ec2_tag_stopper.arn
+  rule = aws_cloudwatch_event_rule.ec2_tag_stopper.name
+  arn  = aws_lambda_function.ec2_tag_stopper.arn
 }
 
 # Allow CloudWatch Events to invoke the Lambda function
