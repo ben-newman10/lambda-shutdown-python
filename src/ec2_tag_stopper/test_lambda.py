@@ -1,83 +1,98 @@
-import pytest
-from unittest.mock import patch, MagicMock
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from ec2_handler import stop_ec2_instances_with_tag
 
-@patch('ec2_handler.ec2')
-def test_stop_ec2_instances_with_tag_no_env_vars(mock_ec2):
-    # Ensure environment variables are not set using patch.dict to clear them
+
+@patch("ec2_handler._get_ec2_client")
+def test_stop_ec2_instances_with_tag_no_env_vars(mock_get_client):
     with patch.dict(os.environ, {}, clear=True):
-        # Mock logger
-        with patch('ec2_handler.logger') as mock_logger:
-            stop_ec2_instances_with_tag({}, {})
-            mock_logger.error.assert_called_with("Environment variables TAG_KEY and TAG_VALUE must be set.")
+        with patch("ec2_handler.logger") as mock_logger:
+            result = stop_ec2_instances_with_tag({}, {})
 
-@patch('ec2_handler.ec2')
-def test_stop_ec2_instances_with_tag_no_instances(mock_ec2):
-    env_vars = {'TAG_KEY': 'Environment', 'TAG_VALUE': 'Test'}
-    
+            mock_logger.error.assert_called_with(
+                "Environment variables TAG_KEY and TAG_VALUE must be set."
+            )
+            assert result["stopped_instances"] == []
+            assert "error" in result
+
+
+@patch("ec2_handler._get_ec2_client")
+def test_stop_ec2_instances_with_tag_no_instances(mock_get_client):
+    mock_ec2 = MagicMock()
+    mock_get_client.return_value = mock_ec2
+    env_vars = {"TAG_KEY": "Environment", "TAG_VALUE": "Test"}
+
     with patch.dict(os.environ, env_vars):
-        # Mock Paginator
         mock_paginator = MagicMock()
         mock_ec2.get_paginator.return_value = mock_paginator
-        mock_paginator.paginate.return_value = iter([{'Reservations': []}])
+        mock_paginator.paginate.return_value = iter([{"Reservations": []}])
 
-        # Mock logger
-        with patch('ec2_handler.logger') as mock_logger:
-            stop_ec2_instances_with_tag({}, {})
-            
-            # Verify filter call
-            mock_paginator.paginate.assert_called_with(Filters=[
-                {'Name': 'tag:Environment', 'Values': ['Test']},
-                {'Name': 'instance-state-name', 'Values': ['running']}
-            ])
-            mock_logger.info.assert_called_with("No running EC2 instances found with 'Environment=Test'.")
+        with patch("ec2_handler.logger") as mock_logger:
+            result = stop_ec2_instances_with_tag({}, {})
 
-@patch('ec2_handler.ec2')
-def test_stop_ec2_instances_with_tag_instances_found(mock_ec2):
-    env_vars = {'TAG_KEY': 'Environment', 'TAG_VALUE': 'Test'}
-    
+            mock_paginator.paginate.assert_called_with(
+                Filters=[
+                    {"Name": "tag:Environment", "Values": ["Test"]},
+                    {"Name": "instance-state-name", "Values": ["running"]},
+                ]
+            )
+            mock_logger.info.assert_called_with(
+                "No running EC2 instances found with '%s=%s'.",
+                "Environment",
+                "Test",
+            )
+            assert result == {"stopped_instances": []}
+
+
+@patch("ec2_handler._get_ec2_client")
+def test_stop_ec2_instances_with_tag_instances_found(mock_get_client):
+    mock_ec2 = MagicMock()
+    mock_get_client.return_value = mock_ec2
+    env_vars = {"TAG_KEY": "Environment", "TAG_VALUE": "Test"}
+
     with patch.dict(os.environ, env_vars):
-        # Mock Paginator
         mock_paginator = MagicMock()
         mock_ec2.get_paginator.return_value = mock_paginator
-        
-        # Simulate two pages of results
-        mock_paginator.paginate.return_value = iter([
-            {
-                'Reservations': [
-                    {
-                        'Instances': [{'InstanceId': 'i-1'}]
-                    }
-                ]
-            },
-            {
-                'Reservations': [
-                    {
-                        'Instances': [{'InstanceId': 'i-2'}]
-                    }
-                ]
-            }
-        ])
 
-        # Mock logger
-        with patch('ec2_handler.logger') as mock_logger:
-            stop_ec2_instances_with_tag({}, {})
-            
-            mock_ec2.stop_instances.assert_called_with(InstanceIds=['i-1', 'i-2'])
-            # Verify log message content partially to avoid strict string matching issues with list order if any
-            args, _ = mock_logger.info.call_args
-            assert "Stopping 2 EC2 instances" in args[0]
+        mock_paginator.paginate.return_value = iter(
+            [
+                {"Reservations": [{"Instances": [{"InstanceId": "i-1"}]}]},
+                {"Reservations": [{"Instances": [{"InstanceId": "i-2"}]}]},
+            ]
+        )
 
-@patch('ec2_handler.ec2')
-def test_stop_ec2_instances_with_tag_exception_handling(mock_ec2):
-    env_vars = {'TAG_KEY': 'Environment', 'TAG_VALUE': 'Test'}
-    
+        with patch("ec2_handler.logger") as mock_logger:
+            result = stop_ec2_instances_with_tag({}, {})
+
+            mock_ec2.stop_instances.assert_called_with(
+                InstanceIds=["i-1", "i-2"]
+            )
+            mock_logger.info.assert_called_with(
+                "Stopping %d EC2 instances with '%s=%s'. IDs: %s",
+                2,
+                "Environment",
+                "Test",
+                ["i-1", "i-2"],
+            )
+            assert result == {"stopped_instances": ["i-1", "i-2"]}
+
+
+@patch("ec2_handler._get_ec2_client")
+def test_stop_ec2_instances_with_tag_exception_handling(mock_get_client):
+    mock_ec2 = MagicMock()
+    mock_get_client.return_value = mock_ec2
+    env_vars = {"TAG_KEY": "Environment", "TAG_VALUE": "Test"}
+
     with patch.dict(os.environ, env_vars):
-        # Mock EC2 client to raise an exception
         mock_ec2.get_paginator.side_effect = Exception("Test exception")
 
-        # Mock logger
-        with patch('ec2_handler.logger') as mock_logger:
-            stop_ec2_instances_with_tag({}, {})
-            mock_logger.exception.assert_called_with("An error occurred: Test exception")
+        with patch("ec2_handler.logger") as mock_logger:
+            with pytest.raises(Exception, match="Test exception"):
+                stop_ec2_instances_with_tag({}, {})
+
+            mock_logger.exception.assert_called_with(
+                "An error occurred while stopping EC2 instances"
+            )

@@ -1,4 +1,17 @@
 terraform {
+  required_version = ">= 1.6"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.0"
+    }
+  }
+
   backend "s3" {}
 }
 
@@ -12,7 +25,7 @@ data "archive_file" "ec2_tag_stopper_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../ec2_tag_stopper"
   output_path = "${path.module}/../ec2_tag_stopper.zip"
-  excludes    = ["__pycache__", "test_lambda.py"] 
+  excludes    = ["__pycache__", "test_lambda.py"]
 }
 
 # Create an IAM Role for Lambda execution
