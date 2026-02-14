@@ -2,78 +2,77 @@
 
 ## Overview
 
-EC2 Tag Stopper Lambda is a project designed to automate the stopping of AWS EC2 instances based on specific tag keys and values. This project leverages AWS Lambda, Terraform, and the AWS SDK for Python (Boto3) to identify and shut down EC2 instances that match pre-defined tags. It's particularly useful for managing costs by ensuring unnecessary instances are stopped automatically at a scheduled time.
+EC2 Tag Stopper Lambda automates stopping AWS EC2 instances based on tag key/value pairs. It runs on a daily schedule via CloudWatch Events and is deployed with Terraform.
 
 ## Components
 
-- **AWS Lambda Function**: The core component that performs the action of stopping EC2 instances. It uses Boto3 to interact with AWS and is designed to be triggered on a schedule via AWS CloudWatch Events.
+- **AWS Lambda Function** (`src/ec2_tag_stopper/ec2_handler.py`) -- Identifies and stops running EC2 instances that match the configured tag. Uses boto3 with pagination for large fleets.
 
-- **Terraform Configuration**: Automates the infrastructure setup needed for this Lambda function. This includes IAM roles and policies, the Lambda function itself, and CloudWatch event rules for scheduling.
+- **Terraform Configuration** (`src/terraform/`) -- Provisions the Lambda function, IAM roles/policies, and CloudWatch event schedule. Uses the AWS provider `~> 5.0` and requires Terraform `>= 1.6`.
 
-- **GitHub Actions Workflow**: Deploys the Terraform configurations when changes are pushed to the main branch, ensuring continuous deployment and updates.
+- **GitHub Actions Workflow** (`.github/workflows/deploy-terraform.yml`) -- Runs tests on push to `main`, then deploys the Terraform configuration. Uses `hashicorp/setup-terraform@v3` with Terraform 1.9.8.
 
 ## How It Works
 
-1. **Tag Specification**: You define the tag `Key` and `Value` that identifies which EC2 instances should be stopped. These are set as environment variables in the Lambda function.
+1. **Tag Specification** -- Define the tag `Key` and `Value` via Terraform variables. These are passed to the Lambda as `TAG_KEY` and `TAG_VALUE` environment variables.
 
-2. **Terraform Setup**: The `main.tf` file contains resources like IAM Roles and Policies needed for Lambda execution, and manages the Lambda function's configuration such as its handler and runtime. It also creates CloudWatch rules for scheduled execution.
+2. **Scheduled Execution** -- CloudWatch Events triggers the Lambda daily at 7 PM UTC.
 
-3. **Lambda Execution**: The Lambda function checks EC2 instances for the specified tags, and triggers the `stop_instances` API call for those that match. This function is executed daily at 7 PM UTC as per the configured CloudWatch schedule.
+3. **Instance Discovery & Shutdown** -- The Lambda uses server-side filtering with pagination to find running instances matching the tag, then calls `stop_instances` on them.
 
 ## Prerequisites
 
-Before using this project, ensure you have:
+- An AWS account with IAM credentials that can create Lambda functions, IAM roles/policies, and CloudWatch rules.
+- [Terraform](https://www.terraform.io/) >= 1.6 installed locally (for manual deploys).
+- Python 3.12+ (to match the Lambda runtime).
 
-- An AWS account with the necessary IAM credentials.
-- Terraform installed and configured in your environment.
-- AWS CLI configured with appropriate permissions to create resources.
-- Python 3.12 or later installed (to match the Lambda runtime).
+## Development
+
+Install development dependencies and run the test suite:
+
+```bash
+pip install -r requirements-dev.txt
+pytest src/
+```
 
 ## Deployment
 
-1. **Clone the Repository**:
-   ```bash
-   git clone git@github.com:ben-newman10/lambda-shutdown-python.git
-   cd lambda-shutdown-python
-   ```
+### Via GitHub Actions (recommended)
 
-2. **Configure AWS Credentials**: Make sure your local environment or CI/CD pipeline has AWS credentials configured with permissions to deploy Terraform resources.
+Push to the `main` branch. The workflow will:
 
-3. **Configure Backend**:
-   This project uses an S3 backend for Terraform state. You must provide the configuration dynamically or via a file. Copy the example file and fill in your details:
-   ```bash
-   cp src/terraform/backend.conf.example src/terraform/backend.conf
-   # Edit src/terraform/backend.conf with your bucket details
-   ```
+1. Run the test suite.
+2. Deploy the Terraform configuration.
 
-4. **Deploy Locally**:
-   Run Terraform to apply the configuration, passing the backend config:
-   ```bash
-   cd src/terraform
-   terraform init -backend-config=backend.conf
-   terraform apply -auto-approve
-   ```
+AWS credentials must be stored as repository secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`).
 
-4. **Deploy via GitHub Actions**: Push changes to the `main` branch to trigger the `deploy-terraform.yml` workflow, which will automatically apply Terraform configurations.
+### Manual
+
+```bash
+# Configure the S3 backend
+cp src/terraform/backend.conf.example src/terraform/backend.conf
+# Edit src/terraform/backend.conf with your bucket details
+
+# Deploy
+cd src/terraform
+terraform init -backend-config=backend.conf
+terraform apply
+```
 
 ## Configuration
 
-- **Terraform Variables**: You can adjust the default tag key and value by modifying the `variables.tf` or setting them in a `terraform.tfvars` file.
-  ```hcl
-  tag_key = "YourTagKey"
-  tag_value = "YourTagValue"
-  ```
+| Variable    | Description                             | Default           |
+| ----------- | --------------------------------------- | ----------------- |
+| `region`    | AWS region for the Lambda and EC2 scope | *(required)*      |
+| `tag_key`   | Tag key to match EC2 instances          | `Rowden`          |
+| `tag_value` | Tag value to match EC2 instances        | `rowden-example`  |
 
-- **AWS Region**: Ensure the `region` variable in `terraform.tfvars` matches the region of your EC2 instances.
+Set these in `src/terraform/terraform.tfvars` or pass them via `-var` flags.
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for more details.
+This project is licensed under the MIT License. See the LICENSE file for details.
 
 ## Contributing
 
-We welcome contributions to improve this project! Please submit pull requests or issues for review.
-
----
-
-By setting up this project, you'll have an automated system to manage the state of your EC2 instances based on specific tags, helping streamline your AWS cost management efforts.
+Contributions are welcome. Please open an issue or submit a pull request.
